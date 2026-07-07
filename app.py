@@ -138,7 +138,7 @@ def add_footer():
             </div>
             <div class="footer-item">
                 <span class="label">🏛️ Lab:</span>
-                <span class="value">Animal Breeding Lab</span>
+                <span class="value">Pemuliaan Ternak Terapan</span>
             </div>
             <div class="footer-item">
                 <span class="label">📚 Fakultas:</span>
