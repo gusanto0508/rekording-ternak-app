@@ -1,3 +1,5 @@
+# Trigger rebuild
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,6 +9,7 @@ import seaborn as sns
 import re
 from io import BytesIO
 import base64
+import networkx as nx
 
 # ==================== KONFIGURASI ====================
 st.set_page_config(
@@ -17,7 +20,6 @@ st.set_page_config(
 )
 
 # ==================== INISIALISASI SESSION STATE ====================
-# INI YANG DITAMBAHKAN UNTUK MENCEGAH ERROR
 if 'pedigree' not in st.session_state:
     st.session_state.pedigree = None
 if 'results' not in st.session_state:
@@ -29,18 +31,11 @@ if 'input_method' not in st.session_state:
 
 # ==================== FUNGSI UNTUK BACKGROUND ====================
 def add_background():
-    """
-    Menambahkan background dengan gradasi dan gambar ilustrasi
-    """
-    # CSS untuk background gradasi + gambar
     st.markdown("""
     <style>
-    /* Background utama dengan gradasi */
     .stApp {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     }
-    
-    /* Container utama dengan efek transparan */
     .main > div {
         background: rgba(255, 255, 255, 0.92);
         border-radius: 15px;
@@ -48,24 +43,16 @@ def add_background():
         margin: 10px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-    
-    /* Sidebar dengan efek transparan */
     .css-1d391kg {
         background: rgba(44, 62, 80, 0.95) !important;
         backdrop-filter: blur(10px);
     }
-    
-    /* Sidebar text color */
     .css-1d391kg .stMarkdown, .css-1d391kg .stText, .css-1d391kg .stTitle {
         color: white !important;
     }
-    
-    /* Judul di sidebar */
     .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3 {
         color: #f1c40f !important;
     }
-    
-    /* Footer styling */
     .footer {
         position: fixed;
         bottom: 0;
@@ -80,7 +67,6 @@ def add_background():
         border-top: 3px solid #f1c40f;
         z-index: 999;
     }
-    
     .footer-content {
         display: flex;
         justify-content: center;
@@ -88,32 +74,18 @@ def add_background():
         gap: 30px;
         flex-wrap: wrap;
     }
-    
     .footer-item {
         display: flex;
         align-items: center;
         gap: 8px;
     }
-    
     .footer-item .label {
         font-weight: bold;
         color: #f1c40f;
     }
-    
     .footer-item .value {
         color: #ecf0f1;
     }
-    
-    /* Card styling untuk dashboard */
-    .metric-card {
-        background: rgba(255, 255, 255, 0.9);
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        border-left: 4px solid #f1c40f;
-    }
-    
-    /* Header styling */
     .main-header {
         background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
         padding: 20px;
@@ -122,41 +94,32 @@ def add_background():
         margin-bottom: 20px;
         text-align: center;
     }
-    
     .main-header h1 {
         color: #f1c40f !important;
         margin: 0;
     }
-    
     .main-header p {
         color: #ecf0f1;
         margin: 5px 0 0 0;
     }
-    
-    /* Sembunyikan footer default Streamlit */
     .st-emotion-cache-1cypcdb {
         display: none !important;
     }
-    
-    /* Tabs styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: rgba(255,255,255,0.5);
         border-radius: 10px;
         padding: 5px;
     }
-    
     .stTabs [data-baseweb="tab"] {
         border-radius: 8px;
         padding: 10px 20px;
         background: rgba(255,255,255,0.7);
         transition: all 0.3s ease;
     }
-    
     .stTabs [data-baseweb="tab"]:hover {
         background: rgba(241, 196, 15, 0.3);
     }
-    
     .stTabs [aria-selected="true"] {
         background: #f1c40f !important;
         color: #2c3e50 !important;
@@ -166,9 +129,6 @@ def add_background():
     """, unsafe_allow_html=True)
 
 def add_footer():
-    """
-    Menambahkan footer dengan identitas institusi
-    """
     footer_html = """
     <div class="footer">
         <div class="footer-content">
@@ -194,9 +154,6 @@ def add_footer():
     st.markdown(footer_html, unsafe_allow_html=True)
 
 def add_sidebar_identity():
-    """
-    Menambahkan identitas di sidebar
-    """
     sidebar_html = """
     <style>
     .sidebar-identity {
@@ -240,39 +197,27 @@ def add_sidebar_identity():
 
 # ==================== FUNGSI VALIDASI SEX ====================
 def validate_sex(df):
-    """
-    Validasi jenis kelamin dalam data pedigree:
-    1. Setiap individu hanya memiliki satu jenis kelamin (jantan atau betina)
-    2. Sire harus jantan
-    3. Dam harus betina
-    4. Individu tidak bisa menjadi Sire dan Dam sekaligus
-    """
     df_copy = df.copy()
     errors = []
     warnings = []
     
-    # Standarisasi kolom SEX jika ada
     sex_col = None
     for col in df_copy.columns:
         if col.lower() in ['sex', 'jenis_kelamin', 'gender', 'kelamin']:
             sex_col = col
             break
     
-    # Konversi semua ID ke string untuk konsistensi
     for col in ['ID', 'Sire', 'Dam']:
         if col in df_copy.columns:
             df_copy[col] = df_copy[col].astype(str).str.strip()
             df_copy[col] = df_copy[col].replace('nan', '0')
             df_copy[col] = df_copy[col].replace('None', '0')
     
-    # Buat mapping ID ke jenis kelamin
     sex_map = {}
     if sex_col:
         for _, row in df_copy.iterrows():
             id_val = row['ID']
             sex_val = str(row[sex_col]).upper().strip()
-            
-            # Standarisasi nilai sex
             if sex_val in ['M', 'MALE', 'JANTAN', 'J', 'L', 'LAKI', '1']:
                 sex_map[id_val] = 'MALE'
             elif sex_val in ['F', 'FEMALE', 'BETINA', 'P', 'PEREMPUAN', '2']:
@@ -282,9 +227,6 @@ def validate_sex(df):
             else:
                 sex_map[id_val] = sex_val
     
-    # ============================================================
-    # VALIDASI 1: Setiap individu hanya memiliki satu jenis kelamin
-    # ============================================================
     duplicate_sex = {}
     for _, row in df_copy.iterrows():
         id_val = row['ID']
@@ -296,9 +238,6 @@ def validate_sex(df):
             else:
                 duplicate_sex[id_val] = sex_val
     
-    # ============================================================
-    # VALIDASI 2: Sire harus jantan
-    # ============================================================
     for _, row in df_copy.iterrows():
         sire = row['Sire']
         if sire != '0' and sire in sex_map:
@@ -308,9 +247,6 @@ def validate_sex(df):
             elif sire_sex == 'UNKNOWN':
                 warnings.append(f"⚠️ Jenis kelamin Sire '{sire}' tidak diketahui. Asumsikan sebagai jantan.")
     
-    # ============================================================
-    # VALIDASI 3: Dam harus betina
-    # ============================================================
     for _, row in df_copy.iterrows():
         dam = row['Dam']
         if dam != '0' and dam in sex_map:
@@ -320,9 +256,6 @@ def validate_sex(df):
             elif dam_sex == 'UNKNOWN':
                 warnings.append(f"⚠️ Jenis kelamin Dam '{dam}' tidak diketahui. Asumsikan sebagai betina.")
     
-    # ============================================================
-    # VALIDASI 4: Individu tidak bisa menjadi Sire dan Dam sekaligus
-    # ============================================================
     sire_set = set()
     dam_set = set()
     for _, row in df_copy.iterrows():
@@ -335,9 +268,6 @@ def validate_sex(df):
     for id_val in conflict_ids:
         errors.append(f"❌ Individu '{id_val}' muncul sebagai SIRE dan DAM sekaligus! (harus salah satu)")
     
-    # ============================================================
-    # VALIDASI 5: Cek konsistensi sex untuk individu yang sama
-    # ============================================================
     if sex_col:
         sex_groups = {}
         for _, row in df_copy.iterrows():
@@ -351,9 +281,6 @@ def validate_sex(df):
             if len(sexes) > 1:
                 errors.append(f"❌ Individu '{id_val}' memiliki data sex ganda: {', '.join(sexes)}")
     
-    # ============================================================
-    # TAMBAHKAN KOLOM SEX JIKA BELUM ADA
-    # ============================================================
     if sex_col is None:
         warnings.append("ℹ️ Tidak ada kolom SEX. Sistem akan mengasumsikan sex berdasarkan peran (Sire/Dam).")
         sex_temp = {}
@@ -525,7 +452,6 @@ def complete_pedigree(df):
     return df_copy
 
 def process_pedigree_data(df_raw):
-    """Proses data pedigree dari berbagai sumber input dengan validasi sex"""
     df_standard = standardize_columns(df_raw)
     df_validated, errors, warnings = validate_sex(df_standard)
     
@@ -545,7 +471,6 @@ def process_pedigree_data(df_raw):
 
 # ==================== FUNGSI PERHITUNGAN ====================
 def hitung_inbreeding_dan_matriks_A(silsilah_df):
-    """Menghitung koefisien inbreeding dan matriks kekerabatan"""
     df = silsilah_df[['ID', 'Sire', 'Dam']].copy()
     
     for col in ['ID', 'Sire', 'Dam']:
@@ -612,6 +537,188 @@ def hitung_inbreeding_dan_matriks_A(silsilah_df):
     
     return F_dict, A_df, A, id_list
 
+# ==================== FUNGSI PEDIGREE CHART (DENGAN WARNA EDGE) ====================
+def create_pedigree_chart(df, F_dict=None):
+    G = nx.DiGraph()
+    
+    for _, row in df.iterrows():
+        id_val = row['ID']
+        sex = 'U'
+        if 'SEX' in row:
+            sex_val = str(row['SEX']).upper().strip()
+            if sex_val in ['M', 'MALE', 'JANTAN', 'J', 'L', 'LAKI', '1']:
+                sex = 'M'
+            elif sex_val in ['F', 'FEMALE', 'BETINA', 'P', 'PEREMPUAN', '2']:
+                sex = 'F'
+        
+        G.add_node(id_val, sex=sex)
+    
+    for _, row in df.iterrows():
+        child = row['ID']
+        sire = row['Sire']
+        dam = row['Dam']
+        
+        if sire != '0' and sire in G.nodes:
+            G.add_edge(sire, child, type='sire')
+        if dam != '0' and dam in G.nodes:
+            G.add_edge(dam, child, type='dam')
+    
+    generations = {}
+    if hasattr(st.session_state, 'generations') and st.session_state.generations:
+        generations = st.session_state.generations
+    else:
+        for node in nx.topological_sort(G):
+            if G.in_degree(node) == 0:
+                generations[node] = 0
+            else:
+                max_gen = 0
+                for pred in G.predecessors(node):
+                    if pred in generations:
+                        max_gen = max(max_gen, generations[pred] + 1)
+                generations[node] = max_gen
+    
+    return G, generations
+
+def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", show_f=True):
+    """
+    Menggambar pedigree chart dengan garis hubungan yang tipis dan rapi
+    """
+    pos = {}
+    
+    gen_groups = {}
+    for node, gen in generations.items():
+        if gen not in gen_groups:
+            gen_groups[gen] = []
+        gen_groups[gen].append(node)
+    
+    max_gen = max(generations.values()) if generations else 0
+    
+    for gen in range(max_gen + 1):
+        nodes_in_gen = gen_groups.get(gen, [])
+        n_nodes = len(nodes_in_gen)
+        for i, node in enumerate(sorted(nodes_in_gen)):
+            x = (i + 0.5) / n_nodes if n_nodes > 0 else 0.5
+            y = 1 - (gen / (max_gen + 2)) if max_gen > 0 else 0.5
+            pos[node] = (x * 10, y * 10)
+    
+    fig, ax = plt.subplots(figsize=(14, 10))
+    
+    # ============================================================
+    # WARNA NODE BERDASARKAN JENIS KELAMIN
+    # ============================================================
+    node_colors = []
+    for node in G.nodes():
+        sex = G.nodes[node].get('sex', 'U')
+        if sex == 'M':
+            node_colors.append('#3498db')
+        elif sex == 'F':
+            node_colors.append('#e74c3c')
+        else:
+            node_colors.append('#95a5a6')
+    
+    node_sizes = []
+    for node in G.nodes():
+        if F_dict and node in F_dict:
+            f_val = F_dict[node]
+            size = 800 + (f_val * 2000)
+            node_sizes.append(size)
+        else:
+            node_sizes.append(800)
+    
+    nx.draw_networkx_nodes(G, pos, 
+                          node_color=node_colors, 
+                          node_size=node_sizes,
+                          alpha=0.9,
+                          edgecolors='black',
+                          linewidths=2,
+                          ax=ax)
+    
+    # ============================================================
+    # EDGE DENGAN LINE WIDTH YANG LEBIH TIPIS
+    # ============================================================
+    edges_sire = []
+    edges_dam = []
+    edges_unknown = []
+    
+    for u, v, data in G.edges(data=True):
+        sex = G.nodes[u].get('sex', 'U')
+        if sex == 'M':
+            edges_sire.append((u, v))
+        elif sex == 'F':
+            edges_dam.append((u, v))
+        else:
+            edges_unknown.append((u, v))
+    
+    # ============================================================
+    # LINE WIDTH DIPERKECIL: 2.5 → 1.2
+    # ============================================================
+    if edges_sire:
+        nx.draw_networkx_edges(G, pos,
+                              edgelist=edges_sire,
+                              edge_color='#3498db',
+                              arrows=True,
+                              arrowsize=15,
+                              arrowstyle='->',
+                              width=1.2,       # <-- Lebih tipis
+                              alpha=0.7,
+                              ax=ax)
+    
+    if edges_dam:
+        nx.draw_networkx_edges(G, pos,
+                              edgelist=edges_dam,
+                              edge_color='#e74c3c',
+                              arrows=True,
+                              arrowsize=15,
+                              arrowstyle='->',
+                              width=1.2,       # <-- Lebih tipis
+                              alpha=0.7,
+                              ax=ax)
+    
+    if edges_unknown:
+        nx.draw_networkx_edges(G, pos,
+                              edgelist=edges_unknown,
+                              edge_color='#95a5a6',
+                              arrows=True,
+                              arrowsize=15,
+                              arrowstyle='->',
+                              width=1.0,       # <-- Lebih tipis
+                              alpha=0.5,
+                              ax=ax)
+    
+    # ============================================================
+    # LABEL NODE
+    # ============================================================
+    labels = {}
+    for node in G.nodes():
+        if F_dict and node in F_dict and show_f:
+            labels[node] = f"{node}\nF={F_dict[node]:.3f}"
+        else:
+            labels[node] = f"{node}"
+    
+    nx.draw_networkx_labels(G, pos, labels, font_size=9, font_weight='bold', ax=ax)
+    
+    ax.set_title(title, fontsize=16, fontweight='bold')
+    ax.axis('off')
+    
+    # ============================================================
+    # LEGENDA (dengan line width yang disesuaikan)
+    # ============================================================
+    legend_elements = [
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='#3498db', 
+                   markersize=12, label='Jantan (M)'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='#e74c3c', 
+                   markersize=12, label='Betina (F)'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='#95a5a6', 
+                   markersize=12, label='Unknown'),
+        plt.Line2D([0], [0], color='#3498db', lw=1.5, label='Hubungan dari Sire (Jantan)'),
+        plt.Line2D([0], [0], color='#e74c3c', lw=1.5, label='Hubungan dari Dam (Betina)'),
+        plt.Line2D([0], [0], color='#95a5a6', lw=1.0, label='Hubungan dari Unknown'),
+    ]
+    ax.legend(handles=legend_elements, loc='upper left', fontsize=10)
+    
+    plt.tight_layout()
+    return fig
+
 # ==================== FUNGSI CROSSCHECKING PERKAWINAN ====================
 def cek_perkawinan(sire_id, dam_id, A_df, id_list):
     if sire_id not in id_list:
@@ -649,7 +756,6 @@ def cek_perkawinan(sire_id, dam_id, A_df, id_list):
     if sire_id == dam_id:
         hubungan.append("⚠️ SELFING - Individu yang sama!")
     else:
-        # Gunakan st.session_state.pedigree dengan aman
         pedigree_data = st.session_state.pedigree
         if pedigree_data is not None:
             for _, row in pedigree_data.iterrows():
@@ -678,11 +784,7 @@ def cek_perkawinan(sire_id, dam_id, A_df, id_list):
     }
 
 # ==================== TAMPILAN UTAMA ====================
-
-# Tambahkan background
 add_background()
-
-# Tambahkan footer
 add_footer()
 
 # ==================== SIDEBAR ====================
@@ -691,21 +793,21 @@ with st.sidebar:
     
     menu = st.radio(
         "Navigasi",
-        ["🏠 Dashboard", "📊 Data Entry", "🔬 Analisis", "🤝 Cek Perkawinan", "📈 Laporan"]
+        ["🏠 Dashboard", "📊 Data Entry", "🔬 Analisis", "🧬 Pedigree Chart", "🤝 Cek Perkawinan", "📈 Laporan"]
     )
     
     st.divider()
     
-    # Gunakan st.session_state dengan aman (sudah diinisialisasi)
     if st.session_state.pedigree is not None:
         st.success(f"✅ Data tersedia: {len(st.session_state.pedigree)} individu")
     else:
         st.info("📌 Belum ada data")
     
-    # Tambahkan identitas di sidebar
     add_sidebar_identity()
 
-# ==================== MAIN CONTENT ====================
+# ================================================================
+# MENU: DASHBOARD
+# ================================================================
 if menu == "🏠 Dashboard":
     st.markdown("""
     <div class="main-header">
@@ -719,13 +821,12 @@ if menu == "🏠 Dashboard":
     
     **Fitur:**
     - ✅ Mencatat data silsilah dan fenotipik ternak
-    - ✅ **Validasi Jenis Kelamin Otomatis** - Sire harus jantan, Dam harus betina
-    - ✅ **Deteksi Konflik Sex** - Individu tidak bisa menjadi Sire dan Dam sekaligus
-    - ✅ 4 Metode Input Data: Upload File, Input Manual, Bulk Input, Data Editor
+    - ✅ **Validasi Jenis Kelamin Otomatis**
+    - ✅ 4 Metode Input Data
     - ✅ Auto-sorting berdasarkan generasi + ID
     - ✅ Menghitung koefisien inbreeding (F) dengan algoritma Henderson
     - ✅ Membangun matriks kekerabatan (A) yang akurat
-    - ✅ Visualisasi heatmap hubungan genetik
+    - ✅ **🧬 Pedigree Chart - Visualisasi silsilah dengan warna edge berdasarkan jenis kelamin tetua**
     - ✅ Cek perkawinan - Prediksi inbreeding anak
     """)
     
@@ -1018,12 +1119,22 @@ elif menu == "🔬 Analisis":
                     st.error(f"Error dalam perhitungan: {str(e)}")
         
         if 'F' in st.session_state.results:
+            # ============================================================
+            # KOEFISIEN INBREEDING (F) - DENGAN URUTAN ID
+            # ============================================================
             with st.expander("📈 Koefisien Inbreeding (F)", expanded=True):
+                # Buat DataFrame dari hasil F
                 F_df = pd.DataFrame(
                     st.session_state.results['F'].items(),
                     columns=['ID', 'Koefisien Inbreeding']
-                ).sort_values('Koefisien Inbreeding', ascending=False)
+                )
                 
+                # Urutkan ID menggunakan natural_sort_key
+                F_df['_sort_key'] = F_df['ID'].apply(natural_sort_key)
+                F_df = F_df.sort_values('_sort_key').drop('_sort_key', axis=1)
+                F_df = F_df.reset_index(drop=True)
+                
+                # Statistik
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.metric("📊 Rata-rata F", f"{F_df['Koefisien Inbreeding'].mean():.4f}")
@@ -1032,17 +1143,27 @@ elif menu == "🔬 Analisis":
                 with col3:
                     st.metric("⬇️ Minimum F", f"{F_df['Koefisien Inbreeding'].min():.4f}")
                 
+                # Tabel dengan warna gradasi
                 st.dataframe(
                     F_df.style.background_gradient(
                         cmap='RdYlGn_r',
                         subset=['Koefisien Inbreeding']
                     ),
-                    use_container_width=True
+                    use_container_width=True,
+                    hide_index=True
                 )
             
+            # ============================================================
+            # MATRIKS KEKERABATAN (A)
+            # ============================================================
             with st.expander("📊 Matriks Kekerabatan (A)", expanded=True):
                 if st.session_state.results['A'] is not None:
                     A_df = st.session_state.results['A']
+                    
+                    # Urutkan kolom dan index berdasarkan ID
+                    sorted_ids = sorted(A_df.index.tolist(), key=natural_sort_key)
+                    A_df = A_df.loc[sorted_ids, sorted_ids]
+                    
                     st.dataframe(
                         A_df.style.background_gradient(
                             cmap='Blues', 
@@ -1053,10 +1174,18 @@ elif menu == "🔬 Analisis":
                         use_container_width=True
                     )
             
+            # ============================================================
+            # HEATMAP
+            # ============================================================
             with st.expander("🔥 Heatmap", expanded=True):
                 if st.session_state.results['A'] is not None:
                     try:
                         A_df = st.session_state.results['A']
+                        
+                        # Urutkan kolom dan index berdasarkan ID
+                        sorted_ids = sorted(A_df.index.tolist(), key=natural_sort_key)
+                        A_df = A_df.loc[sorted_ids, sorted_ids]
+                        
                         n = len(A_df)
                         fig_size = max(8, n * 0.8)
                         
@@ -1083,10 +1212,18 @@ elif menu == "🔬 Analisis":
                     except Exception as e:
                         st.warning(f"⚠️ Tidak dapat menampilkan heatmap: {str(e)}")
             
+            # ============================================================
+            # DISTRIBUSI NILAI KEKERABATAN
+            # ============================================================
             with st.expander("📊 Distribusi Nilai Kekerabatan", expanded=True):
                 if st.session_state.results['A'] is not None:
                     try:
                         A_df = st.session_state.results['A']
+                        
+                        # Urutkan kolom dan index berdasarkan ID
+                        sorted_ids = sorted(A_df.index.tolist(), key=natural_sort_key)
+                        A_df = A_df.loc[sorted_ids, sorted_ids]
+                        
                         values = []
                         for i in range(len(A_df)):
                             for j in range(i+1, len(A_df)):
@@ -1109,11 +1246,19 @@ elif menu == "🔬 Analisis":
                     except Exception as e:
                         st.warning(f"⚠️ Tidak dapat menampilkan distribusi: {str(e)}")
             
+            # ============================================================
+            # DOWNLOAD HASIL
+            # ============================================================
             with st.expander("📥 Download Hasil", expanded=False):
                 F_df = pd.DataFrame(
                     st.session_state.results['F'].items(),
                     columns=['ID', 'F']
                 )
+                
+                # Urutkan F_df untuk download
+                F_df['_sort_key'] = F_df['ID'].apply(natural_sort_key)
+                F_df = F_df.sort_values('_sort_key').drop('_sort_key', axis=1)
+                F_df = F_df.reset_index(drop=True)
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -1127,13 +1272,88 @@ elif menu == "🔬 Analisis":
                 
                 with col2:
                     if st.session_state.results['A'] is not None:
-                        csv_A = st.session_state.results['A'].to_csv().encode('utf-8')
+                        A_df = st.session_state.results['A']
+                        # Urutkan untuk download
+                        sorted_ids = sorted(A_df.index.tolist(), key=natural_sort_key)
+                        A_df = A_df.loc[sorted_ids, sorted_ids]
+                        csv_A = A_df.to_csv().encode('utf-8')
                         st.download_button(
                             label="📥 Download Matriks A (CSV)",
                             data=csv_A,
                             file_name='matriks_kekerabatan.csv',
                             mime='text/csv'
                         )
+    else:
+        st.warning("⚠️ Silakan input data silsilah terlebih dahulu di tab '📊 Data Entry'!")
+
+# ================================================================
+# MENU: PEDIGREE CHART
+# ================================================================
+elif menu == "🧬 Pedigree Chart":
+    st.markdown("""
+    <div class="main-header">
+        <h1>🧬 Pedigree Chart - Diagram Silsilah</h1>
+        <p>Visualisasi hubungan kekerabatan antar individu dalam bentuk path diagram</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if st.session_state.pedigree is not None:
+        df = st.session_state.pedigree
+        
+        F_dict = st.session_state.results.get('F', None) if 'F' in st.session_state.results else None
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.info(f"📊 Total individu: {len(df)} individu")
+            if F_dict:
+                st.info(f"📈 Koefisien inbreeding tersedia: {len(F_dict)} individu")
+        with col2:
+            if st.button("🔄 Refresh Diagram", type="primary"):
+                st.rerun()
+        
+        try:
+            G, generations = create_pedigree_chart(df, F_dict)
+            
+            with st.expander("⚙️ Pengaturan Tampilan", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    show_labels = st.checkbox("Tampilkan Label", value=True)
+                with col2:
+                    show_inbreeding = st.checkbox("Tampilkan Inbreeding (F)", value=True if F_dict else False)
+            
+            title = "Pedigree Chart - Silsilah Ternak"
+            if F_dict and show_inbreeding:
+                title = "Pedigree Chart dengan Koefisien Inbreeding (F)"
+            
+            fig = draw_pedigree_chart(G, generations, F_dict if show_inbreeding else None, title)
+            st.pyplot(fig)
+            plt.close(fig)
+            
+            st.divider()
+            st.subheader("📊 Ringkasan Struktur Pedigree")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Jumlah Individu", len(G.nodes))
+            with col2:
+                st.metric("Jumlah Hubungan", len(G.edges))
+            with col3:
+                max_gen = max(generations.values()) if generations else 0
+                st.metric("Jumlah Generasi", max_gen + 1)
+            
+            with st.expander("📋 Individu per Generasi"):
+                gen_groups = {}
+                for node, gen in generations.items():
+                    if gen not in gen_groups:
+                        gen_groups[gen] = []
+                    gen_groups[gen].append(node)
+                
+                for gen in sorted(gen_groups.keys()):
+                    st.write(f"**Generasi {gen}**: {', '.join(sorted(gen_groups[gen]))}")
+            
+        except Exception as e:
+            st.error(f"❌ Error saat membuat diagram: {str(e)}")
+            st.info("💡 Pastikan data pedigree memiliki struktur yang valid (induk muncul sebelum anak).")
     else:
         st.warning("⚠️ Silakan input data silsilah terlebih dahulu di tab '📊 Data Entry'!")
 
