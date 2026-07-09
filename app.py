@@ -132,8 +132,6 @@ def add_footer():
     footer_html = """
     <div class="footer" style="background: rgba(44, 62, 80, 0.95); backdrop-filter: blur(10px); color: white; text-align: center; padding: 12px 20px; font-size: 14px; border-top: 3px solid #f1c40f; z-index: 999; position: fixed; bottom: 0; left: 0; right: 0;">
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; max-width: 1200px; margin: 0 auto;">
-            
-            <!-- Baris 1: Developed by dan Lab -->
             <div style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 25px;">
                 <div style="display: flex; align-items: center; gap: 5px;">
                     <span style="font-weight: bold; color: #f1c40f;">🐄 Developed by:</span>
@@ -144,8 +142,6 @@ def add_footer():
                     <span style="color: #ecf0f1;">Pemuliaan Ternak Terapan</span>
                 </div>
             </div>
-            
-            <!-- Baris 2: Kerjasama -->
             <div style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 5px;">
                 <span style="font-weight: bold; color: #f1c40f;">🤝 Kerjasama:</span>
                 <span style="color: #ecf0f1; font-size: 12px; text-align: center;">
@@ -156,7 +152,6 @@ def add_footer():
                     Balai Besar Pembibitan Ternak Unggul dan Hijauan Pakan Ternak (BBPTUHPT) Baturraden
                 </span>
             </div>
-            
         </div>
     </div>
     """
