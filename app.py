@@ -130,24 +130,33 @@ def add_background():
 
 def add_footer():
     footer_html = """
-    <div class="footer">
-        <div class="footer-content" style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 30px; padding: 5px 10px;">
-            <div class="footer-item">
-                <span class="label">🐄 Developed by:</span>
-                <span class="value">Agus Susanto</span>
+    <div class="footer" style="background: rgba(44, 62, 80, 0.95); backdrop-filter: blur(10px); color: white; text-align: center; padding: 10px 20px; font-size: 14px; border-top: 3px solid #f1c40f; z-index: 999; position: fixed; bottom: 0; left: 0; right: 0;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 25px; max-width: 1200px; margin: 0 auto;">
+            
+            <!-- Developed by -->
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-weight: bold; color: #f1c40f;">🐄 Developed by:</span>
+                <span style="color: #ecf0f1;">Agus Susanto</span>
             </div>
-            <div class="footer-item">
-                <span class="label">🏛️ Lab:</span>
-                <span class="value">Pemuliaan Ternak Terapan</span>
+            
+            <!-- Lab -->
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-weight: bold; color: #f1c40f;">🏛️ Lab:</span>
+                <span style="color: #ecf0f1;">Pemuliaan Ternak Terapan</span>
             </div>
-            <div class="footer-item" style="flex: 1; min-width: 250px; text-align: center;">
-                <span class="label">🤝 Kerjasama:</span>
-                <span class="value" style="display: block; font-size: 12px; line-height: 1.6;">
-                    Fakultas Peternakan Universitas Jenderal Soedirman<br>
-                    dengan<br>
+            
+            <!-- Kerjasama -->
+            <div style="display: flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: center;">
+                <span style="font-weight: bold; color: #f1c40f;">🤝 Kerjasama:</span>
+                <span style="color: #ecf0f1; font-size: 12px;">
+                    Fakultas Peternakan Universitas Jenderal Soedirman
+                    <span style="color: #f1c40f; margin: 0 5px;">|</span>
+                    dengan
+                    <span style="color: #f1c40f; margin: 0 5px;">|</span>
                     Balai Besar Pembibitan Ternak Unggul dan Hijauan Pakan Ternak (BBPTUHPT) Baturraden
                 </span>
             </div>
+            
         </div>
     </div>
     """
