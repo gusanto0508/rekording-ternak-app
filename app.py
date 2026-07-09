@@ -131,7 +131,7 @@ def add_background():
 def add_footer():
     footer_html = """
     <div class="footer">
-        <div class="footer-content">
+        <div class="footer-content" style="display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 30px; padding: 5px 10px;">
             <div class="footer-item">
                 <span class="label">🐄 Developed by:</span>
                 <span class="value">Agus Susanto</span>
@@ -140,9 +140,13 @@ def add_footer():
                 <span class="label">🏛️ Lab:</span>
                 <span class="value">Pemuliaan Ternak Terapan</span>
             </div>
-            <div class="footer-item" style="flex: 1; min-width: 200px;">
+            <div class="footer-item" style="flex: 1; min-width: 250px; text-align: center;">
                 <span class="label">🤝 Kerjasama:</span>
-                <span class="value" style="font-size: 12px;">Fakultas Peternakan Universitas Jenderal Soedirman dengan Balai Besar Pembibitan Ternak Unggul dan Hijauan Pakan Ternak (BBPTUHPT) Baturraden</span>
+                <span class="value" style="display: block; font-size: 12px; line-height: 1.6;">
+                    Fakultas Peternakan Universitas Jenderal Soedirman<br>
+                    dengan<br>
+                    Balai Besar Pembibitan Ternak Unggul dan Hijauan Pakan Ternak (BBPTUHPT) Baturraden
+                </span>
             </div>
         </div>
     </div>
