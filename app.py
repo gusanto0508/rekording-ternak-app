@@ -140,13 +140,9 @@ def add_footer():
                 <span class="label">🏛️ Lab:</span>
                 <span class="value">Pemuliaan Ternak Terapan</span>
             </div>
-            <div class="footer-item">
-                <span class="label">📚 Fakultas:</span>
-                <span class="value">Fakultas Peternakan</span>
-            </div>
-            <div class="footer-item">
-                <span class="label">🎓 Universitas:</span>
-                <span class="value">Universitas Jenderal Soedirman</span>
+            <div class="footer-item" style="flex: 1; min-width: 200px;">
+                <span class="label">🤝 Kerjasama:</span>
+                <span class="value" style="font-size: 12px;">Fakultas Peternakan Universitas Jenderal Soedirman dengan Balai Besar Pembibitan Ternak Unggul dan Hijauan Pakan Ternak (BBPTUHPT) Baturraden</span>
             </div>
         </div>
     </div>
