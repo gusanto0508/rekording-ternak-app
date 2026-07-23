@@ -731,7 +731,7 @@ def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", sho
             dx_norm = dx / length
             dy_norm = dy / length
             
-            node_radius = 0.35
+            node_radius = 0.15
             
             start_x = start[0] + dx_norm * node_radius
             start_y = start[1] + dy_norm * node_radius
