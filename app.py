@@ -585,7 +585,7 @@ def create_pedigree_chart(df, F_dict=None):
 
 def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", show_f=True):
     """
-    Menggambar pedigree chart dengan garis hubungan yang tipis dan rapi
+    Menggambar pedigree chart dengan offset untuk menghindari overlap garis
     """
     pos = {}
     
@@ -597,21 +597,79 @@ def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", sho
     
     max_gen = max(generations.values()) if generations else 0
     
-    for gen in range(max_gen + 1):
-        nodes_in_gen = gen_groups.get(gen, [])
-        n_nodes = len(nodes_in_gen)
-        for i, node in enumerate(sorted(nodes_in_gen)):
-            x = (i + 0.5) / n_nodes if n_nodes > 0 else 0.5
-            y = 1 - (gen / (max_gen + 2)) if max_gen > 0 else 0.5
-            pos[node] = (x * 10, y * 10)
+    # ============================================================
+    # HITUNG POSISI X DENGAN OFFSET UNTUK MENGHINDARI OVERLAP
+    # ============================================================
+    # Generasi 0 (founder): sebarkan secara horizontal
+    founders = gen_groups.get(0, [])
+    n_founders = len(founders)
+    for i, node in enumerate(sorted(founders, key=natural_sort_key)):
+        x = (i + 0.5) / n_founders if n_founders > 0 else 0.5
+        pos[node] = (x * 10, 9.5)
     
+    # Generasi selanjutnya: posisi anak dengan offset
+    for gen in range(1, max_gen + 1):
+        nodes_in_gen = gen_groups.get(gen, [])
+        
+        # Kelompokkan anak berdasarkan kombinasi orang tua (sire, dam)
+        parent_groups = {}
+        for node in nodes_in_gen:
+            parents = list(G.predecessors(node))
+            sire = parents[0] if len(parents) > 0 else None
+            dam = parents[1] if len(parents) > 1 else None
+            # Pastikan sire selalu yang pertama (berdasarkan jenis kelamin)
+            if sire is not None and dam is not None:
+                sire_sex = G.nodes[sire].get('sex', 'U')
+                dam_sex = G.nodes[dam].get('sex', 'U')
+                if sire_sex != 'M' and dam_sex == 'M':
+                    sire, dam = dam, sire
+            key = (sire, dam)
+            if key not in parent_groups:
+                parent_groups[key] = []
+            parent_groups[key].append(node)
+        
+        # Untuk setiap kelompok anak, posisikan dengan offset
+        for (sire, dam), children in parent_groups.items():
+            children_sorted = sorted(children, key=natural_sort_key)
+            n_children = len(children_sorted)
+            
+            parent_x = []
+            if sire is not None and sire in pos:
+                parent_x.append(pos[sire][0])
+            if dam is not None and dam in pos:
+                parent_x.append(pos[dam][0])
+            
+            if not parent_x:
+                for i, child in enumerate(children_sorted):
+                    x = (i + 0.5) / n_children if n_children > 0 else 0.5
+                    pos[child] = (x * 10, 9.5 - gen * 1.8)
+                continue
+            
+            base_x = np.mean(parent_x)
+            
+            if n_children == 1:
+                pos[children_sorted[0]] = (base_x, 9.5 - gen * 1.8)
+            else:
+                if len(parent_x) == 2:
+                    spread = abs(parent_x[1] - parent_x[0]) * 0.6
+                else:
+                    spread = 1.5
+                spread = max(spread, 0.8 * n_children)
+                start_x = base_x - spread / 2
+                for i, child in enumerate(children_sorted):
+                    x = start_x + (i + 0.5) * (spread / n_children)
+                    x = max(0.3, min(9.7, x))
+                    pos[child] = (x, 9.5 - gen * 1.8)
+    
+    # ============================================================
+    # GAMBAR DIAGRAM
+    # ============================================================
     fig, ax = plt.subplots(figsize=(14, 10))
     
-    # ============================================================
-    # WARNA NODE BERDASARKAN JENIS KELAMIN
-    # ============================================================
+    # Warna node berdasarkan jenis kelamin
     node_colors = []
-    for node in G.nodes():
+    sorted_nodes = sorted(G.nodes(), key=natural_sort_key)
+    for node in sorted_nodes:
         sex = G.nodes[node].get('sex', 'U')
         if sex == 'M':
             node_colors.append('#3498db')
@@ -621,7 +679,7 @@ def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", sho
             node_colors.append('#95a5a6')
     
     node_sizes = []
-    for node in G.nodes():
+    for node in sorted_nodes:
         if F_dict and node in F_dict:
             f_val = F_dict[node]
             size = 800 + (f_val * 2000)
@@ -630,15 +688,17 @@ def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", sho
             node_sizes.append(800)
     
     nx.draw_networkx_nodes(G, pos, 
+                          nodelist=sorted_nodes,
                           node_color=node_colors, 
                           node_size=node_sizes,
                           alpha=0.9,
                           edgecolors='black',
                           linewidths=2,
-                          ax=ax)
+                          ax=ax,
+                          node_shape='o')
     
     # ============================================================
-    # EDGE DENGAN LINE WIDTH YANG LEBIH TIPIS
+    # EDGE DENGAN WARNA BERDASARKAN JENIS KELAMIN TETUA
     # ============================================================
     edges_sire = []
     edges_dam = []
@@ -653,49 +713,56 @@ def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", sho
         else:
             edges_unknown.append((u, v))
     
-    # ============================================================
-    # LINE WIDTH DIPERKECIL: 2.5 → 1.2
-    # ============================================================
-    if edges_sire:
-        nx.draw_networkx_edges(G, pos,
-                              edgelist=edges_sire,
-                              edge_color='#3498db',
-                              arrows=True,
-                              arrowsize=15,
-                              arrowstyle='->',
-                              width=1.2,       # <-- Lebih tipis
-                              alpha=0.7,
-                              ax=ax)
+    def draw_edges_with_style(edgelist, color, width, alpha, ax):
+        if not edgelist:
+            return
+        from matplotlib.patches import FancyArrowPatch
+        
+        for u, v in edgelist:
+            start = pos[u]
+            end = pos[v]
+            
+            dx = end[0] - start[0]
+            dy = end[1] - start[1]
+            length = np.sqrt(dx**2 + dy**2)
+            if length == 0:
+                continue
+            
+            dx_norm = dx / length
+            dy_norm = dy / length
+            
+            node_radius = 0.35
+            
+            start_x = start[0] + dx_norm * node_radius
+            start_y = start[1] + dy_norm * node_radius
+            
+            end_x = end[0] - dx_norm * node_radius
+            end_y = end[1] - dy_norm * node_radius
+            
+            arrow = FancyArrowPatch(
+                (start_x, start_y), 
+                (end_x, end_y),
+                arrowstyle='->',
+                mutation_scale=15,
+                facecolor=color,
+                edgecolor=color,
+                linewidth=width,
+                alpha=alpha,
+                zorder=1
+            )
+            ax.add_patch(arrow)
     
-    if edges_dam:
-        nx.draw_networkx_edges(G, pos,
-                              edgelist=edges_dam,
-                              edge_color='#e74c3c',
-                              arrows=True,
-                              arrowsize=15,
-                              arrowstyle='->',
-                              width=1.2,       # <-- Lebih tipis
-                              alpha=0.7,
-                              ax=ax)
-    
-    if edges_unknown:
-        nx.draw_networkx_edges(G, pos,
-                              edgelist=edges_unknown,
-                              edge_color='#95a5a6',
-                              arrows=True,
-                              arrowsize=15,
-                              arrowstyle='->',
-                              width=1.0,       # <-- Lebih tipis
-                              alpha=0.5,
-                              ax=ax)
+    draw_edges_with_style(edges_sire, '#3498db', 1.5, 0.8, ax)
+    draw_edges_with_style(edges_dam, '#e74c3c', 1.5, 0.8, ax)
+    draw_edges_with_style(edges_unknown, '#95a5a6', 1.2, 0.6, ax)
     
     # ============================================================
     # LABEL NODE
     # ============================================================
     labels = {}
-    for node in G.nodes():
+    for node in sorted_nodes:
         if F_dict and node in F_dict and show_f:
-            labels[node] = f"{node}\nF={F_dict[node]:.3f}"
+            labels[node] = f"{node}\nF={F_dict[node]:.4f}"
         else:
             labels[node] = f"{node}"
     
@@ -705,7 +772,7 @@ def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", sho
     ax.axis('off')
     
     # ============================================================
-    # LEGENDA (dengan line width yang disesuaikan)
+    # LEGENDA
     # ============================================================
     legend_elements = [
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='#3498db', 
@@ -714,9 +781,9 @@ def draw_pedigree_chart(G, generations, F_dict=None, title="Pedigree Chart", sho
                    markersize=12, label='Betina (F)'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='#95a5a6', 
                    markersize=12, label='Unknown'),
-        plt.Line2D([0], [0], color='#3498db', lw=1.5, label='Hubungan dari Sire (Jantan)'),
-        plt.Line2D([0], [0], color='#e74c3c', lw=1.5, label='Hubungan dari Dam (Betina)'),
-        plt.Line2D([0], [0], color='#95a5a6', lw=1.0, label='Hubungan dari Unknown'),
+        plt.Line2D([0], [0], color='#3498db', lw=2, label='Hubungan dari Sire (Jantan)'),
+        plt.Line2D([0], [0], color='#e74c3c', lw=2, label='Hubungan dari Dam (Betina)'),
+        plt.Line2D([0], [0], color='#95a5a6', lw=1.5, label='Hubungan dari Unknown'),
     ]
     ax.legend(handles=legend_elements, loc='upper left', fontsize=10)
     
