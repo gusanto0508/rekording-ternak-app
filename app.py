@@ -169,7 +169,7 @@ def add_sidebar_identity():
         margin-bottom: 5px;
     }
     .sidebar-identity .subtitle {
-        color: #ecf0f1;
+        color: #f1c40f;
         font-size: 13px;
         margin: 2px 0;
     }
