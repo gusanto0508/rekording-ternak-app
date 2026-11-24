@@ -146,11 +146,7 @@ def add_footer():
                 <span style="font-weight: bold; color: #f1c40f;">🤝 Kerjasama:</span>
                 <span style="color: #ecf0f1; font-size: 12px; text-align: center;">
                     Fakultas Peternakan Universitas Jenderal Soedirman
-                    <span style="color: #f1c40f; margin: 0 5px;">|</span>
-                    dengan
-                    <span style="color: #f1c40f; margin: 0 5px;">|</span>
-                    Balai Besar Pembibitan Ternak Unggul dan Hijauan Pakan Ternak (BBPTUHPT) Baturraden
-                </span>
+                    </span>
             </div>
         </div>
     </div>
